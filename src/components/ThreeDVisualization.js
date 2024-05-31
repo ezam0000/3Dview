@@ -12,13 +12,20 @@ const ThreeDVisualization = () => {
   const [camera, setCamera] = useState(null);
   const [renderer, setRenderer] = useState(null);
   const [controls, setControls] = useState(null);
+  const [ambientLight, setAmbientLight] = useState(null);
+  const [directionalLight, setDirectionalLight] = useState(null);
+  const [materialColor, setMaterialColor] = useState(0x0055ff);
+  const [wireframe, setWireframe] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [backgroundColor, setBackgroundColor] = useState(0x2c2c2c);
+  const [model, setModel] = useState(null);
 
   useEffect(() => {
     const currentRef = ref.current;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x808080); // Set a gray background color
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100000); // Adjust far clipping plane
+    scene.background = new THREE.Color(backgroundColor);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     currentRef.appendChild(renderer.domElement);
@@ -28,21 +35,25 @@ const ThreeDVisualization = () => {
     controls.dampingFactor = 0.25;
     controls.screenSpacePanning = false;
     controls.rotateSpeed = 0.5;
-    controls.zoomSpeed = 1.5; // Adjust zoom speed for better control
+    controls.zoomSpeed = 1.5;
 
-    // Add ambient light and directional light
-    const ambientLight = new THREE.AmbientLight(0x404040);
+    const ambientLight = new THREE.AmbientLight(0x404040, 2);
     scene.add(ambientLight);
+    setAmbientLight(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
     directionalLight.position.set(5, 10, 7.5).normalize();
     scene.add(directionalLight);
+    setDirectionalLight(directionalLight);
 
-    // Add a more complex default geometry for testing
+    const gridHelper = new THREE.GridHelper(10, 10);
+    scene.add(gridHelper);
+
     const geometry = new THREE.TorusKnotGeometry(1, 0.4, 100, 16);
-    const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.5, metalness: 0.5, wireframe });
     const knot = new THREE.Mesh(geometry, material);
     scene.add(knot);
+    setModel(knot);
 
     camera.position.set(0, 1, 5);
     controls.update();
@@ -73,7 +84,7 @@ const ThreeDVisualization = () => {
         currentRef.removeChild(renderer.domElement);
       }
     };
-  }, []);
+  }, [materialColor, wireframe, backgroundColor]);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -87,7 +98,6 @@ const ThreeDVisualization = () => {
         console.log('File loaded:', contents);
 
         let loader;
-        let loadedObject;
 
         switch (extension) {
           case 'gltf':
@@ -95,32 +105,31 @@ const ThreeDVisualization = () => {
             loader = new GLTFLoader();
             loader.parse(contents, '', (gltf) => {
               console.log('GLTF parsed:', gltf);
-              loadedObject = gltf.scene;
-              ensureMaterialAndGeometry(loadedObject);
-              addObjectToScene(loadedObject, scene, camera, controls);
+              applyMaterial(gltf.scene);
+              addObjectToScene(gltf.scene);
             });
             break;
           case 'obj':
             loader = new OBJLoader();
-            loadedObject = loader.parse(contents);
-            console.log('OBJ parsed:', loadedObject);
-            ensureMaterialAndGeometry(loadedObject);
-            addObjectToScene(loadedObject, scene, camera, controls);
+            const obj = loader.parse(contents);
+            console.log('OBJ parsed:', obj);
+            applyMaterial(obj);
+            addObjectToScene(obj);
             break;
           case 'fbx':
             loader = new FBXLoader();
-            loadedObject = loader.parse(contents);
-            console.log('FBX parsed:', loadedObject);
-            ensureMaterialAndGeometry(loadedObject);
-            addObjectToScene(loadedObject, scene, camera, controls);
+            const fbx = loader.parse(contents);
+            console.log('FBX parsed:', fbx);
+            applyMaterial(fbx);
+            addObjectToScene(fbx);
             break;
           case 'stl':
             loader = new STLLoader();
             const geometry = loader.parse(contents);
-            const material = new THREE.MeshStandardMaterial({ color: 0x0055ff });
-            loadedObject = new THREE.Mesh(geometry, material);
-            console.log('STL parsed:', loadedObject);
-            addObjectToScene(loadedObject, scene, camera, controls);
+            const material = new THREE.MeshStandardMaterial({ color: materialColor, wireframe });
+            const mesh = new THREE.Mesh(geometry, material);
+            console.log('STL parsed:', mesh);
+            addObjectToScene(mesh);
             break;
           default:
             alert('Unsupported file format');
@@ -136,33 +145,30 @@ const ThreeDVisualization = () => {
     }
   };
 
-  const ensureMaterialAndGeometry = (object) => {
+  const applyMaterial = (object) => {
+    const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.5, metalness: 0.5, wireframe });
     object.traverse((child) => {
       if (child.isMesh) {
-        if (!child.material) {
-          child.material = new THREE.MeshStandardMaterial({ color: 0x888888 });
-        }
-        if (!child.geometry) {
-          console.error('Child mesh does not have geometry:', child);
-        }
+        child.material = material;
+        child.material.needsUpdate = true;
       }
     });
   };
 
-  const addObjectToScene = (object, scene, camera, controls) => {
+  const addObjectToScene = (object) => {
     if (!scene) {
       console.error('Scene is not defined');
       return;
     }
     console.log('Adding object to scene:', object);
 
-    // Clear previous objects and add new object
-    while (scene.children.length > 0) { 
-      scene.remove(scene.children[0]); 
-    }
+    scene.children.forEach((child) => {
+      if (child.type !== 'AmbientLight' && child.type !== 'DirectionalLight') {
+        scene.remove(child);
+      }
+    });
     scene.add(object);
 
-    // Center and fit object within camera view
     const box = new THREE.Box3().setFromObject(object);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
@@ -174,7 +180,7 @@ const ThreeDVisualization = () => {
     const fov = camera.fov * (Math.PI / 180);
     let cameraZ = Math.abs(maxDim / 2 * Math.tan(fov * 2));
 
-    cameraZ *= 1.2; // Zoom out a little so that objects fit comfortably inside the view
+    cameraZ *= 1.2;
 
     camera.position.set(center.x, center.y, cameraZ);
 
@@ -187,12 +193,107 @@ const ThreeDVisualization = () => {
 
     controls.target = center;
     controls.update();
+    setModel(object);
+  };
+
+  const toggleWireframe = () => {
+    setWireframe(!wireframe);
+  };
+
+  const toggleGridHelper = () => {
+    if (showGrid) {
+      scene.children.forEach((child) => {
+        if (child.type === 'GridHelper') {
+          scene.remove(child);
+        }
+      });
+    } else {
+      const gridHelper = new THREE.GridHelper(10, 10);
+      scene.add(gridHelper);
+    }
+    setShowGrid(!showGrid);
+  };
+
+  const resetCamera = () => {
+    camera.position.set(0, 1, 5);
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+    controls.update();
+  };
+
+  const scaleModel = (event) => {
+    if (model) {
+      const scale = parseFloat(event.target.value);
+      model.scale.set(scale, scale, scale);
+    }
   };
 
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
       <input type="file" accept=".gltf,.glb,.obj,.fbx,.stl" onChange={handleFileUpload} style={{ position: 'absolute', zIndex: 10 }} />
       <div ref={ref} style={{ height: '100%', width: '100%' }}></div>
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 10, backgroundColor: 'white', padding: '10px', borderRadius: '8px' }}>
+        <div>
+          <label>Ambient Light Intensity:</label>
+          <input
+            type="range"
+            min="0"
+            max="5"
+            step="0.1"
+            value={ambientLight ? ambientLight.intensity : 2}
+            onChange={(e) => {
+              if (ambientLight) {
+                ambientLight.intensity = parseFloat(e.target.value);
+                setAmbientLight(ambientLight);
+              }
+            }}
+          />
+        </div>
+        <div>
+          <label>Directional Light Intensity:</label>
+          <input
+            type="range"
+            min="0"
+            max="5"
+            step="0.1"
+            value={directionalLight ? directionalLight.intensity : 2}
+            onChange={(e) => {
+              if (directionalLight) {
+                directionalLight.intensity = parseFloat(e.target.value);
+                setDirectionalLight(directionalLight);
+              }
+            }}
+          />
+        </div>
+        <div>
+          <label>Material Color:</label>
+          <input
+            type="color"
+            value={`#${materialColor.toString(16).padStart(6, '0')}`}
+            onChange={(e) => setMaterialColor(parseInt(e.target.value.replace('#', ''), 16))}
+          />
+        </div>
+        <div>
+          <label>Wireframe:</label>
+          <input type="checkbox" checked={wireframe} onChange={toggleWireframe} />
+        </div>
+        <div>
+          <label>Show Grid:</label>
+          <input type="checkbox" checked={showGrid} onChange={toggleGridHelper} />
+        </div>
+        <div>
+          <label>Background Color:</label>
+          <input
+            type="color"
+            value={`#${backgroundColor.toString(16).padStart(6, '0')}`}
+            onChange={(e) => setBackgroundColor(parseInt(e.target.value.replace('#', ''), 16))}
+          />
+        </div>
+        <div>
+          <label>Model Scale:</label>
+          <input type="range" min="0.1" max="10" step="0.1" defaultValue="1" onChange={scaleModel} />
+        </div>
+        <button onClick={resetCamera}>Reset Camera</button>
+      </div>
     </div>
   );
 };
