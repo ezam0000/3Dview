@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
@@ -46,8 +46,10 @@ const ThreeDVisualization = () => {
     scene.add(directionalLight);
     setDirectionalLight(directionalLight);
 
-    const gridHelper = new THREE.GridHelper(10, 10);
-    scene.add(gridHelper);
+    if (showGrid) {
+      const gridHelper = new THREE.GridHelper(10, 10);
+      scene.add(gridHelper);
+    }
 
     const geometry = new THREE.TorusKnotGeometry(1, 0.4, 100, 16);
     const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.5, metalness: 0.5, wireframe });
@@ -84,7 +86,29 @@ const ThreeDVisualization = () => {
         currentRef.removeChild(renderer.domElement);
       }
     };
-  }, [materialColor, wireframe, backgroundColor]);
+  }, [backgroundColor, showGrid]);
+
+  const applyMaterial = useCallback((object) => {
+    const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.5, metalness: 0.5, wireframe });
+    object.traverse((child) => {
+      if (child.isMesh) {
+        child.material = material;
+        child.material.needsUpdate = true;
+      }
+    });
+  }, [materialColor, wireframe]);
+
+  useEffect(() => {
+    if (model) {
+      applyMaterial(model);
+    }
+  }, [materialColor, wireframe, model, applyMaterial]);
+
+  useEffect(() => {
+    if (scene) {
+      scene.background = new THREE.Color(backgroundColor);
+    }
+  }, [backgroundColor, scene]);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -145,16 +169,6 @@ const ThreeDVisualization = () => {
     }
   };
 
-  const applyMaterial = (object) => {
-    const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.5, metalness: 0.5, wireframe });
-    object.traverse((child) => {
-      if (child.isMesh) {
-        child.material = material;
-        child.material.needsUpdate = true;
-      }
-    });
-  };
-
   const addObjectToScene = (object) => {
     if (!scene) {
       console.error('Scene is not defined');
@@ -163,7 +177,7 @@ const ThreeDVisualization = () => {
     console.log('Adding object to scene:', object);
 
     scene.children.forEach((child) => {
-      if (child.type !== 'AmbientLight' && child.type !== 'DirectionalLight') {
+      if (child.type !== 'AmbientLight' && child.type !== 'DirectionalLight' && child.type !== 'GridHelper') {
         scene.remove(child);
       }
     });
@@ -201,23 +215,15 @@ const ThreeDVisualization = () => {
   };
 
   const toggleGridHelper = () => {
-    if (showGrid) {
-      scene.children.forEach((child) => {
-        if (child.type === 'GridHelper') {
-          scene.remove(child);
-        }
-      });
-    } else {
-      const gridHelper = new THREE.GridHelper(10, 10);
-      scene.add(gridHelper);
-    }
     setShowGrid(!showGrid);
   };
 
   const resetCamera = () => {
-    camera.position.set(0, 1, 5);
-    camera.lookAt(new THREE.Vector3(0, 0, 0));
-    controls.update();
+    if (camera && controls) {
+      camera.position.set(0, 1, 5);
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
+      controls.update();
+    }
   };
 
   const scaleModel = (event) => {
