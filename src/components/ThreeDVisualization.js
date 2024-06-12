@@ -5,6 +5,8 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCog } from '@fortawesome/free-solid-svg-icons';
 
 const ThreeDVisualization = () => {
   const ref = useRef();
@@ -19,6 +21,8 @@ const ThreeDVisualization = () => {
   const [showGrid, setShowGrid] = useState(true);
   const [backgroundColor, setBackgroundColor] = useState(0x2c2c2c);
   const [model, setModel] = useState(null);
+  const [autoRotate, setAutoRotate] = useState(false);
+  const [showControls, setShowControls] = useState(true);
 
   useEffect(() => {
     const currentRef = ref.current;
@@ -36,6 +40,8 @@ const ThreeDVisualization = () => {
     controls.screenSpacePanning = false;
     controls.rotateSpeed = 0.5;
     controls.zoomSpeed = 1.5;
+    controls.autoRotate = autoRotate; // Enable auto-rotation
+    controls.autoRotateSpeed = 2.0; // Auto-rotation speed
 
     const ambientLight = new THREE.AmbientLight(0x404040, 2);
     scene.add(ambientLight);
@@ -63,6 +69,9 @@ const ThreeDVisualization = () => {
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
+      if (autoRotate && model) {
+        model.rotation.y += 0.01;
+      }
       renderer.render(scene, camera);
     };
     animate();
@@ -87,6 +96,12 @@ const ThreeDVisualization = () => {
       }
     };
   }, [backgroundColor, showGrid]);
+
+  useEffect(() => {
+    if (controls) {
+      controls.autoRotate = autoRotate;
+    }
+  }, [autoRotate, controls]);
 
   const applyMaterial = useCallback((object) => {
     const material = new THREE.MeshStandardMaterial({ color: materialColor, roughness: 0.5, metalness: 0.5, wireframe });
@@ -218,6 +233,10 @@ const ThreeDVisualization = () => {
     setShowGrid(!showGrid);
   };
 
+  const toggleAutoRotate = () => {
+    setAutoRotate(!autoRotate);
+  };
+
   const resetCamera = () => {
     if (camera && controls) {
       camera.position.set(0, 1, 5);
@@ -237,69 +256,80 @@ const ThreeDVisualization = () => {
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
       <input type="file" accept=".gltf,.glb,.obj,.fbx,.stl" onChange={handleFileUpload} style={{ position: 'absolute', zIndex: 10 }} />
       <div ref={ref} style={{ height: '100%', width: '100%' }}></div>
-      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 10, backgroundColor: 'white', padding: '10px', borderRadius: '8px' }}>
-        <div>
-          <label>Ambient Light Intensity:</label>
-          <input
-            type="range"
-            min="0"
-            max="5"
-            step="0.1"
-            value={ambientLight ? ambientLight.intensity : 2}
-            onChange={(e) => {
-              if (ambientLight) {
-                ambientLight.intensity = parseFloat(e.target.value);
-                setAmbientLight(ambientLight);
-              }
-            }}
-          />
-        </div>
-        <div>
-          <label>Directional Light Intensity:</label>
-          <input
-            type="range"
-            min="0"
-            max="5"
-            step="0.1"
-            value={directionalLight ? directionalLight.intensity : 2}
-            onChange={(e) => {
-              if (directionalLight) {
-                directionalLight.intensity = parseFloat(e.target.value);
-                setDirectionalLight(directionalLight);
-              }
-            }}
-          />
-        </div>
-        <div>
-          <label>Material Color:</label>
-          <input
-            type="color"
-            value={`#${materialColor.toString(16).padStart(6, '0')}`}
-            onChange={(e) => setMaterialColor(parseInt(e.target.value.replace('#', ''), 16))}
-          />
-        </div>
-        <div>
-          <label>Wireframe:</label>
-          <input type="checkbox" checked={wireframe} onChange={toggleWireframe} />
-        </div>
-        <div>
-          <label>Show Grid:</label>
-          <input type="checkbox" checked={showGrid} onChange={toggleGridHelper} />
-        </div>
-        <div>
-          <label>Background Color:</label>
-          <input
-            type="color"
-            value={`#${backgroundColor.toString(16).padStart(6, '0')}`}
-            onChange={(e) => setBackgroundColor(parseInt(e.target.value.replace('#', ''), 16))}
-          />
-        </div>
-        <div>
-          <label>Model Scale:</label>
-          <input type="range" min="0.1" max="10" step="0.1" defaultValue="1" onChange={scaleModel} />
-        </div>
-        <button onClick={resetCamera}>Reset Camera</button>
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 10 }}>
+        <FontAwesomeIcon 
+          icon={faCog} 
+          size="2x" 
+          onClick={() => setShowControls(!showControls)} 
+          style={{ cursor: 'pointer' }} 
+        />
       </div>
+      {showControls && (
+        <div style={{ position: 'absolute', top: 60, right: 20, zIndex: 10, backgroundColor: 'white', padding: '10px', borderRadius: '8px' }}>
+          <div>
+            <label>Ambient Light Intensity:</label>
+            <input
+              type="range"
+              min="0"
+              max="5"
+              step="0.1"
+              value={ambientLight ? ambientLight.intensity : 2}
+              onChange={(e) => {
+                if (ambientLight) {
+                  ambientLight.intensity = parseFloat(e.target.value);
+                  setAmbientLight(ambientLight);
+                }
+              }}
+            />
+          </div>
+          <div>
+            <label>Directional Light Intensity:</label>
+            <input
+              type="range"
+              min="0"
+              max="5"
+              step="0.1"
+              value={directionalLight ? directionalLight.intensity : 2}
+              onChange={(e) => {
+                if (directionalLight) {
+                  directionalLight.intensity = parseFloat(e.target.value);
+                  setDirectionalLight(directionalLight);
+                }
+              }}
+            />
+          </div>
+          <div>
+            <label>Material Color:</label>
+            <input
+              type="color"
+              value={`#${materialColor.toString(16).padStart(6, '0')}`}
+              onChange={(e) => setMaterialColor(parseInt(e.target.value.replace('#', ''), 16))}
+            />
+          </div>
+          <div>
+            <label>Wireframe:</label>
+            <input type="checkbox" checked={wireframe} onChange={toggleWireframe} />
+          </div>
+          <div>
+            <label>Show Grid:</label>
+            <input type="checkbox" checked={showGrid} onChange={toggleGridHelper} />
+          </div>
+          <div>
+            <label>Background Color:</label>
+            <input
+              type="color"
+              value={`#${backgroundColor.toString(16).padStart(6, '0')}`}
+              onChange={(e) => setBackgroundColor(parseInt(e.target.value.replace('#', ''), 16))}
+            />
+          </div>
+          <div>
+            <label>Model Scale:</label>
+            <input type="range" min="0.1" max="10" step="0.1" defaultValue="1" onChange={scaleModel} />
+          </div>
+          <button onClick={resetCamera}>Reset Camera</button>
+          <button onClick={toggleAutoRotate}>{autoRotate ? 'Stop Auto-Rotate' : 'Start Auto-Rotate'}</button>
+        </div>
+      )}
     </div>
   );
 };
